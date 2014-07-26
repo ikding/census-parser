@@ -340,7 +340,7 @@ if __name__ == '__main__':
     
     # Write the header for the data columns
     for (table, fn, co, cell_count) in files:
-        row += ['%s%03d%s%03d' % (pat.sub(r'\1', table), int(pat.sub(r'\2', table)), pat.sub(r'\3', table), cell)
+        row += ['%s%03d%s%04d' % (pat.sub(r'\1', table), int(pat.sub(r'\2', table)), pat.sub(r'\3', table), cell)
                 for cell in range(1, cell_count + 1)]
     
     out.writerow(row)
