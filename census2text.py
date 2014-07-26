@@ -277,6 +277,10 @@ parser.add_option('-s', '--state', dest='state',
                   help='State, e.g. "Alaska", "District of Columbia".',
                   type='choice', choices=states.keys())
 
+parser.add_option('-c', '--county', dest='county',
+                  help='County FIPS code (3 digits). e.g. --state California --county 083 would yield data for Santa Barbara County, CA',
+                  type='string')
+
 parser.add_option('-b', '--bbox', dest='bbox',
                   help='Optional geographic bounds: north west south east.',
                   type='float', nargs=4)
@@ -365,6 +369,10 @@ if __name__ == '__main__':
         if geo['GEOCOMP'] != '00':
             # Geographic Component "00" means the whole thing,
             # not e.g. "01" for urban or "43" for rural parts.
+            continue
+
+        if geo['COUNTY'] != options.county:
+            # This is not the county you're looking for
             continue
 
         if options.bbox is not None:
