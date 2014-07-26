@@ -177,7 +177,6 @@ def get_file_in_zipfile(url, fname, verbose):
     """
     Return a file-like object for a file in a remote zipfile
     """
-    print url
     f = RemoteFileObject(url, verbose, 256 * 1024)
     z = ZipFile(f)
     
