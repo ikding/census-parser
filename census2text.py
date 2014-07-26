@@ -170,23 +170,6 @@ def _file_paths_SF1(state, file_names):
     data_paths = [(file_name, data_pat % file_name) for file_name in file_names]
     return geo_path, dict(data_paths)
 
-def _file_paths_SF3(state, file_names):
-    """
-    Get the file paths for Summary File 3
-    """
-    if state:
-        dir_name = state.replace(' ', '_')
-        state_prefix = states.get(state).lower()
-        geo_path = 'Summary_File_3/%s/%sgeo_uf3.zip' % (dir_name, state_prefix)
-        data_pat = 'Summary_File_3/%s/%s000%%s_uf3.zip' % (dir_name, state_prefix)
-    
-    else:
-        geo_path = 'Summary_File_3/0_National/usgeo_uf3.zip'
-        data_pat = 'Summary_File_3/0_National/us000%s_uf3.zip'
-
-    data_paths = [(file_name, data_pat % file_name) for file_name in file_names]
-    return geo_path, dict(data_paths)
-
 def column_names(wide):
     """
     Column names for geographic header file
@@ -272,7 +255,7 @@ states = {'Alabama': 'AL', 'Alaska': 'AK', 'American Samoa': 'AS', 'Arizona': 'A
 
 parser = OptionParser(usage="""%%prog [options] [list of table IDs]
 
-Convert remote U.S. Census 2000 data to local tab-separated text files.
+Convert remote U.S. Census 2010 data to local tab-separated text files.
 
 Examples:
 
@@ -282,39 +265,22 @@ Examples:
     Age breakdowns for census tracts around Oakland, CA
     census2text.py --state California --bbox 37.86 -122.35 37.70 -122.10 --geography tract P12
     
-    Family type and employment state for counties around New England
-    census2text.py --file SF3 --bbox 47.7 -80.7 38.4 -66.4 P44
-
 Complete documentation of Summary File data is dense but helpful:
-  http://www.census.gov/prod/cen2000/doc/sf1.pdf
+  http://www.census.gov/prod/cen2010/doc/sf1.pdf
 
-See Chapter 7, page 228 for explanation of column names in output.
+Column descriptions are start on page 183.
 
-Other summary files have similar docs:
-  http://www.census.gov/prod/cen2000/doc/sf3.pdf
-
-Available summary files: SF1, SF3.
-
-Available table IDs for each summary file:
-  http://census-tools.teczno.com/SF1-p078-82-subject-locator.pdf
-  http://census-tools.teczno.com/SF3-p062-84-subject-locator.pdf
+Available summary files: SF1.
 
 Available summary levels: %s.
 
-See also numeric summary levels in:
-  http://census-tools.teczno.com/SF1-p083-84-sequence-state.pdf
-  http://census-tools.teczno.com/SF1-p087-88-sequence-national.pdf
-
+See also numeric summary levels in the SF1 documentation, page 107.
 """.rstrip() % ', '.join(summary_levels.keys()))
 
 parser.set_defaults(summary_file='SF1', summary_level='county', table='P1', verbose=None, wide=None)
 
 parser.add_option('-o', '--output', dest='output',
                   help='Optional output filename, stdout if omitted.')
-
-parser.add_option('-f', '--file', dest='summary_file',
-                  help='Optional summary file, defaults to "SF1".',
-                  type='choice', choices=('SF1', 'SF3'))
 
 parser.add_option('-g', '--geography', dest='summary_level',
                   help='Geographic summary level, e.g. "state", "040". Some available summary levels are %s.' % ', '.join(summary_levels.keys()),
