@@ -145,11 +145,11 @@ def file_choice(tables, verbose):
         
     return files
 
-def file_names(state, files):
+def file_paths(state, files):
     """
     Convert File 3 California into ca000032010.sf1
     """
-    return ['%s%05d2010.sf1' % (states[state].lower(), int(f)) for f in files]
+    return '%sgeo2010.sf1' % states[state].lower(), dict([(f, '%s%05d2010.sf1' % (states[state].lower(), int(f))) for f in files])
 
 def column_names(wide):
     """
@@ -177,23 +177,23 @@ def get_file_in_zipfile(url, fname, verbose):
     """
     Return a file-like object for a file in a remote zipfile
     """
+    print url
     f = RemoteFileObject(url, verbose, 256 * 1024)
     z = ZipFile(f)
     
-    assert fname in z.namelist(), 'Filename %s not found in ZIP %s' % (fname, path)
+    assert fname in z.namelist(), 'Filename %s not found in ZIP %s' % (fname, url)
     
     return z.open(fname)
 
-def geo_lines(path, fname, verbose):
+def geo_lines(url, fname, verbose):
     """
     Get the appropriate geographic header
     """
 
     # make sure it is a geographic header
-    assert fname[2:] == 'geo.sf1', 'Not a geographic header file: %s' % fname
+    assert fname[2:] == 'geo2010.sf1', 'Not a geographic header file: %s' % fname
 
-    u = urljoin('http://www2.census.gov/census_2000/datasets/', path)
-    inp = get_file_in_zipfile(u, fname, verbose)
+    inp = get_file_in_zipfile(url, fname, verbose)
 
     # The column offsets and widths are recorded here for the 2010 geographic header
     # Offsets here are one-based to match the documentation on page 19 of the SF1 documentation
@@ -206,7 +206,7 @@ def geo_lines(path, fname, verbose):
             ('AREALAND', 199, 14), ('AREAWATER', 213, 14),
             ('POP100', 319, 9), ('HU100', 328, 9)]
 
-    for line in z.open(inp):
+    for line in inp:
         data = dict( [(key, line[s-1:s-1+l].strip()) for (key, s, l) in cols] )
         
         # Census Bureau represents positive latitude and longitude as +number, get rid of the plus
@@ -216,12 +216,11 @@ def geo_lines(path, fname, verbose):
         
         yield data
 
-def data_lines(path, fname, verbose):
+def data_lines(url, fname, verbose):
     """
     Get all the lines in data file fname from zip file path
     """
-    u = urljoin('http://www2.census.gov/census_2000/datasets/', path)
-    data = get_file_in_zipfile(u, fname, verbose)
+    data = get_file_in_zipfile(url, fname, verbose)
 
     for row in reader(data):
         yield row
@@ -314,7 +313,7 @@ if __name__ == '__main__':
     files = file_choice(tables, options.verbose is not False)
     
     # set up the path to the zipfile
-    src_file = 'http://www2.census.gov/census_2010/04-Summary_File_1/%s/%s2010.sf1.zip' % (options.state.replace(' ', '_', states[option.state])
+    src_file = 'http://www2.census.gov/census_2010/04-Summary_File_1/%s/%s2010.sf1.zip' % (options.state.replace(' ', '_'), states[options.state].lower())
 
     if options.verbose is not False:
         print >> stderr, 'Fetching from %s' % src_file
@@ -323,7 +322,7 @@ if __name__ == '__main__':
         print >> stderr, '-' * 32
     
     file_names = set( [file_name for (tbl, file_name, co, cc) in files] )
-    geo_path, data_paths = file_path(options.state, file_names)
+    geo_path, data_paths = file_paths(options.state, file_names)
 
     # Be forgiving about the bounding box
     if options.bbox is not None:
@@ -355,7 +354,7 @@ if __name__ == '__main__':
     
     file_names = sorted(file_iters.keys())
 
-    # get rows from the geographic header
+    # get rows from geographic header
     geo_iter = geo_lines(src_file, geo_path, options.verbose)
     
     for geo in geo_iter:
