@@ -238,7 +238,8 @@ def data_lines(path, verbose):
     for row in reader(z.open(n[0])):
         yield row
 
-summary_levels = {'country': '010', 'region': '020', 'state': '040', 'county': '050', 'tract': '080', 'zip': ('860', '871'), 'block': '101', 'place': '160'}
+# Updated for 2010 census
+summary_levels = {'state': '040', 'county': '050', 'tract': '080', 'zip': '871', 'block': '101', 'place': '160'}
 
 states = {'Alabama': 'AL', 'Alaska': 'AK', 'American Samoa': 'AS', 'Arizona': 'AZ',
     'Arkansas': 'AR', 'California': 'CA', 'Colorado': 'CO', 'Connecticut': 'CT', 'Delaware': 'DE',
