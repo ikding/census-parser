@@ -217,12 +217,10 @@ def geo_lines(path, verbose):
     for line in z.open(n[0]):
         data = dict( [(key, line[s-1:s-1+l].strip()) for (key, s, l) in cols] )
         
+        # Census Bureau represents positive latitude and longitude as +number, get rid of the plus
+        # There is positive longitude in the US, check out Attu Station CDP, Alaska
         for key in ('LATITUDE', 'LONGITUDE'):
-            val = data[key]
-            data[key] = (val[0] + val[1:-6].lstrip('0') + '.' + val[-6:]).lstrip('+')
-        
-        #for key in ('AREALAND', 'AREAWATER', 'POP100', 'HU100'):
-        #    data[key] = int(data[key])
+            data[key] = data[key].lstrip('+')
         
         yield data
 
