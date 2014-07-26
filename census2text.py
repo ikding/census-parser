@@ -117,6 +117,7 @@ class RemoteFileObject:
 
 def file_choice(summary_file, tables, verbose):
     """
+    Choose the right summary file component for the given Census table
     """
     url = 'http://census-tools.teczno.com/%s.txt' % summary_file
     src = StringIO(urlopen(url).read())
@@ -147,12 +148,14 @@ def file_choice(summary_file, tables, verbose):
 
 def file_paths(summary_file, state, file_names):
     """
+    Wrapper function to return file paths for a given summary file
     """
     file_paths_func = globals().get('_file_paths_%s' % summary_file)
     return file_paths_func(state, file_names)
 
 def _file_paths_SF1(state, file_names):
     """
+    Get the file paths for Summary File 1
     """
     if state:
         dir_name = state.replace(' ', '_')
@@ -169,6 +172,7 @@ def _file_paths_SF1(state, file_names):
 
 def _file_paths_SF3(state, file_names):
     """
+    Get the file paths for Summary File 3
     """
     if state:
         dir_name = state.replace(' ', '_')
@@ -185,6 +189,7 @@ def _file_paths_SF3(state, file_names):
 
 def column_names(wide):
     """
+    Column names for geographic header file
     """
     if wide is True:
         return ['Summary Level', 'Geographic Component', 'State FIPS', 'Place FIPS', 'County FIPS', 'Tract', 'Zip', 'Block', 'Name', 'Latitude', 'Longitude', 'Land Area', 'Water Area', 'Population', 'Housing Units']
@@ -195,6 +200,7 @@ def column_names(wide):
 
 def key_names(wide):
     """
+    Key names for geographic header file
     """
     if wide is True:
         return ('SUMLEV', 'GEOCOMP', 'STATE', 'PLACE', 'COUNTY', 'TRACT', 'ZCTA5', 'BLOCK', 'NAME', 'LATITUDE', 'LONGITUDE', 'AREALAND', 'AREAWATER', 'POP100', 'HU100')
@@ -205,6 +211,7 @@ def key_names(wide):
 
 def geo_lines(path, verbose):
     """
+    Get the appropriate geographic header
     """
     u = urljoin('http://www2.census.gov/census_2000/datasets/', path)
     f = RemoteFileObject(u, verbose, 256 * 1024)
@@ -236,6 +243,7 @@ def geo_lines(path, verbose):
 
 def data_lines(path, verbose):
     """
+    Get all the lines in a data file
     """
     u = urljoin('http://www2.census.gov/census_2000/datasets/', path)
     f = RemoteFileObject(u, verbose, 256 * 1024)
@@ -343,9 +351,11 @@ if __name__ == '__main__':
     if options.summary_level in summary_levels:
         options.summary_level = summary_levels[options.summary_level]
 
+    # There may be multiple summary levels; if not, fix up
     if type(options.summary_level) is not tuple:
         options.summary_level = (options.summary_level, )
     
+    # Figure out what files we need to fetch
     files = file_choice(options.summary_file, tables, options.verbose is not False)
     
     if options.verbose is not False:
@@ -356,6 +366,7 @@ if __name__ == '__main__':
     file_names = set( [file_name for (tbl, file_name, co, cc) in files] )
     geo_path, data_paths = file_paths(options.summary_file, options.state, file_names)
 
+    # Be forgiving about the bounding box
     if options.bbox is not None:
         north = max(options.bbox[0], options.bbox[2])
         south = min(options.bbox[0], options.bbox[2])
@@ -365,15 +376,18 @@ if __name__ == '__main__':
     out = options.output and open(options.output, 'w') or stdout
     out = writer(out, dialect='excel-tab')
     
+    # Get the header for the geo columns
     row = column_names(options.wide)
     pat = compile(r'^([A-Z]+)(\d+)([A-Z]*)$')
     
+    # Write the header for the data columns
     for (table, fn, co, cell_count) in files:
         row += ['%s%03d%s%03d' % (pat.sub(r'\1', table), int(pat.sub(r'\2', table)), pat.sub(r'\3', table), cell)
                 for cell in range(1, cell_count + 1)]
     
     out.writerow(row)
     
+    # Get iterables for all of the files
     file_iters = {}
     
     for (tbl, file_name, co, cc) in files:
@@ -381,6 +395,8 @@ if __name__ == '__main__':
             file_iters[file_name] = data_lines(data_paths[file_name], options.verbose)
     
     file_names = sorted(file_iters.keys())
+
+    # get rows from the geographic header
     geo_iter = geo_lines(geo_path, options.verbose)
     
     for geo in geo_iter:
@@ -405,6 +421,8 @@ if __name__ == '__main__':
         
         data_iters = izip(*[file_iters[file_name] for file_name in file_names])
         
+        # Iterate over all the data files for each geography
+        # This isn't particularly efficient
         for data_lines in data_iters:
             
             file_data = dict(zip(file_names, data_lines))
