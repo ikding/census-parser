@@ -203,14 +203,16 @@ def geo_lines(path, verbose):
     
     assert len(n) == 1, 'Expected one file, not %d: %s' % (len(n), repr(n))
     
-    # Offsets here are one-based to match the documentation in
-    # http://census-tools.teczno.com/SF1-p015-34-geo-state.pdf
-    cols = [('LATITUDE', 311, 9), ('LONGITUDE', 320, 10),
+    # The column offsets and widths are recorded here for the 2010 geographic header
+    # Offsets here are one-based to match the documentation on page 19 of the SF1 documentation
+    # Note that AREAWATER is called AREAWATR in the docs; despite dropping penultimate e's being
+    # all the rage in cool web 2.0 apps (e.g. Flickr), we're going to restore it.
+    cols = [('LATITUDE', 337, 11), ('LONGITUDE', 348, 12),
             ('LOGRECNO', 19, 7), ('SUMLEV', 9, 3), ('GEOCOMP', 12, 2),
-            ('STATE', 30, 2), ('PLACE', 46, 5), ('COUNTY', 32, 3), ('TRACT', 56, 6),
-            ('BLOCK', 63, 4), ('NAME', 201, 90), ('ZCTA3', 158, 3), ('ZCTA5', 161, 5),
-            ('AREALAND', 173, 14), ('AREAWATER', 187, 14),
-            ('POP100', 293, 9), ('HU100', 302, 9)]
+            ('STATE', 28, 2), ('PLACE', 46, 5), ('COUNTY', 30, 3), ('TRACT', 55, 6),
+            ('BLOCK', 62, 4), ('NAME', 227, 90), ('ZCTA5', 172, 5),
+            ('AREALAND', 199, 14), ('AREAWATER', 213, 14),
+            ('POP100', 319, 9), ('HU100', 328, 9)]
 
     for line in z.open(n[0]):
         data = dict( [(key, line[s-1:s-1+l].strip()) for (key, s, l) in cols] )
