@@ -264,7 +264,11 @@ Available summary levels: %s.
 See also numeric summary levels in the SF1 documentation, page 107.
 """.rstrip() % ', '.join(summary_levels.keys()))
 
-parser.set_defaults(state='Illinois', summary_level='county', table='P1', verbose=None, wide=None)
+parser.set_defaults(summary_level='county', table='P1', verbose=None, wide=None)
+
+parser.add_option('-s', '--state', dest='state',
+                  help='State, e.g. "Alaska", "District of Columbia." Required.',
+                  type='choice', choices=states.keys())
 
 parser.add_option('-o', '--output', dest='output',
                   help='Optional output filename, stdout if omitted.')
@@ -272,10 +276,6 @@ parser.add_option('-o', '--output', dest='output',
 parser.add_option('-g', '--geography', dest='summary_level',
                   help='Geographic summary level, e.g. "state", "040". Some available summary levels are %s.' % ', '.join(summary_levels.keys()),
                   type='choice', choices=summary_levels.keys() + summary_levels.values())
-
-parser.add_option('-s', '--state', dest='state',
-                  help='State, e.g. "Alaska", "District of Columbia".',
-                  type='choice', choices=states.keys())
 
 parser.add_option('-c', '--county', dest='county',
                   help='County FIPS code (3 digits). e.g. --state California --county 083 would yield data for Santa Barbara County, CA',
@@ -304,6 +304,9 @@ parser.add_option('-v', '--verbose', dest='verbose',
 if __name__ == '__main__':
 
     options, tables = parser.parse_args()
+
+    if options.state == None:
+        parser.error('Please specify a state; the 2010 Census no longer provides nation-level files')
     
     if options.summary_level in summary_levels:
         options.summary_level = summary_levels[options.summary_level]
