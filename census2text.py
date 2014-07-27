@@ -370,7 +370,7 @@ if __name__ == '__main__':
             # not e.g. "01" for urban or "43" for rural parts.
             continue
 
-        if geo['COUNTY'] != options.county:
+        if options.county != None and geo['COUNTY'] != options.county:
             # This is not the county you're looking for
             continue
 
