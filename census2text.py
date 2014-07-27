@@ -8,7 +8,7 @@ from sys import stdout, stderr, argv
 from os import SEEK_SET, SEEK_CUR, SEEK_END
 from re import compile
 from time import time
-from csv import reader, writer, DictReader
+from csv import reader, DictWriter, DictReader
 from os.path import basename, dirname, join
 from datetime import timedelta
 from optparse import OptionParser
@@ -333,10 +333,7 @@ if __name__ == '__main__':
         south = min(options.bbox[0], options.bbox[2])
         east = max(options.bbox[1], options.bbox[3])
         west = min(options.bbox[1], options.bbox[3])
-        
-    out = options.output and open(options.output, 'w') or stdout
-    out = writer(out, dialect='excel-tab')
-    
+            
     # Get the header for the geo columns
     row = column_names(options.wide)
     pat = compile(r'^([A-Z]+)(\d+)([A-Z]*)$')
@@ -346,7 +343,9 @@ if __name__ == '__main__':
         row += ['%s%03d%s%04d' % (pat.sub(r'\1', table), int(pat.sub(r'\2', table)), pat.sub(r'\3', table), cell)
                 for cell in range(1, cell_count + 1)]
     
-    out.writerow(row)
+    out = options.output and open(options.output, 'w') or stdout
+    out = DictWriter(out, dialect='excel-tab', fieldnames = row)
+    out.writeheader()
     
     # Get iterables for all of the files
     file_iters = {}
@@ -382,29 +381,26 @@ if __name__ == '__main__':
                 # This geography is outside the bounding box
                 continue
     
-        row = [geo[key] for key in key_names(options.wide)]
+        vals = [geo[key] for key in key_names(options.wide)]
+        # name the columns appropriately
+        row = dict(zip(column_names(options.wide), vals))
         
-        data_iters = izip(*[file_iters[file_name] for file_name in file_names])
-        
-        # Iterate over all the data files for each geography
-        # This isn't particularly efficient
-        for data_lines in data_iters:
-            
-            file_data = dict(zip(file_names, data_lines))
-            
-            logrecno_matches = [geo['LOGRECNO'] == data[4] for data in file_data.values()]
-            
-            if False in logrecno_matches:
-                # Logical record numbers don't match, keep looking
-                continue
+        # Iterate over every line in each of the necessary files
+        # It is possible that there won't be an entry for some variable in some file,
+        # so we can't iterate over them all at once as was done in the 2000 version of this script
 
-            # A match!
-            for (tbl, file_name, column_offset, cell_count) in files:
-                data = file_data[file_name]
-                row += data[column_offset:column_offset + cell_count]
-            
-            # Great move on to the next geo
-            break
+        for fname in file_iters.keys():
+            for line in file_iters[fname]:
+                if line[4] == geo['LOGRECNO']:
+                   # We found a match, grab every matrix in this file at once
+                   # matrix is in the form (matrix/table name, file, offset, cell count)
+                   for matrix in [i for i in files if i[1] == fname]:
+                       names = ['%s%03d%s%04d' % (pat.sub(r'\1', matrix[0]), int(pat.sub(r'\2', matrix[0])), pat.sub(r'\3', matrix[0]), cell)
+                                for cell in range(1, matrix[3] + 1)]
+                       values = line[matrix[2]:matrix[2]+matrix[3]]
+                       row.update(zip(names, values))
+                   # done
+                   break
         
         out.writerow(row)
         stdout.flush()
