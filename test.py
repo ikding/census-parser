@@ -2,7 +2,9 @@
 
 """
 Test census2text.py by pulling down data for Knox County, TN and cross checking with API results
-usage: testCensus2text.py [census api key]
+usage: test.py
+
+Assumes that census2text can be found in the current working directory.
 """
 
 from os import environ
@@ -25,7 +27,7 @@ vars = json.load(urlopen('http://api.census.gov/data/2010/sf1/variables.json'))
 
 # get all matrices
 varNames = vars['variables'].keys()
-varNames.remove('SUBMDCC') # this variable crashes the Census servers
+varNames.remove('SUBMDCC') # these variable crashes the Census servers for some reason
 varNames.remove('P0240006')
 matrices = []
 for v in varNames:
