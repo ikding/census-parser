@@ -6,7 +6,6 @@ Run with --help flag for usage instructions.
 
 from sys import stdout, stderr, argv
 from os import SEEK_SET, SEEK_CUR, SEEK_END
-from re import compile
 from time import time
 from csv import reader, DictWriter, DictReader
 from os.path import basename, dirname, join
@@ -18,6 +17,7 @@ from httplib import HTTPConnection
 from urllib import urlopen
 from zipfile import ZipFile
 from itertools import izip
+import re
 
 class RemoteFileObject:
     """ Implement enough of this to be useful:
@@ -119,16 +119,54 @@ def file_choice(tables, verbose):
     """
     Choose the right summary file component for the given Census table
     """
-    src = open(join(dirname(argv[0]), 'sf1_2010.tsv'))
-    
+
+    # code originally in readcsv.py by Peter Gao
+    datareader = DictReader(open("sf1_data_field_descriptors_2010.csv"))
+    data = []
+    entry = None
+    prevCol = None
+    current_table = ""
+    for line in datareader:
+        new_table_number = line['TABLE NUMBER']
+        if new_table_number != current_table:
+            # save the old one
+            if entry != None:
+                data.append(entry)
+
+            entry = {}
+            current_table = new_table_number
+            entry['Matrix Number'] = line['TABLE NUMBER']
+            entry['File Name'] = line['SEGMENT']
+            next_line = datareader.next()
+            entry['Universe'] = (next_line['FIELD NAME'][9:].lstrip())
+
+            entry['Name'] = line['FIELD NAME'][:line['FIELD NAME'].index('[')-1]
+            entry['Cell Count'] = 0
+            entry['Field Names'] = []
+
+        # Increment the cell count iff there's actually data, rather than this being a descriptive row,
+        # and save the column name
+        if len(line['FIELD CODE']) > 0:
+            entry['Cell Count'] += 1
+            entry['Field Names'].append(line['FIELD CODE'])
+
+            # sanity check: ensure the columns are stored in order
+            if entry['Cell Count'] == 1:
+                assert int(re.sub('[A-Z]', '', line['FIELD CODE'][-4:])) == 1,\
+                    'Field names not stored in order for matrix %s: first column is %s' % (entry['Matrix Number'], line['FIELD CODE'])
+            else:
+                assert int(re.sub('[A-Z]', '', line['FIELD CODE'][-4:])) == int(re.sub('[A-Z]', '', prevCol[-4:])) + 1,\
+                    'Field names are not stored in order for matrix %s: column %s follows column %s' %\
+                    (entry['Matrix Number'], line['FIELD CODE'], prevCol)
+
+            prevCol = line['FIELD CODE']
+
     files = []
     
     for table in tables:
-        src.seek(0)
-        
         file_name, column_offset = None, 5
         
-        for row in DictReader(src, dialect='excel-tab'):
+        for row in data:
             curr_file, curr_table, cell_count = row.get('File Name'), row.get('Matrix Number'), int(row.get('Cell Count'))
             
             if curr_file != file_name:
@@ -138,7 +176,7 @@ def file_choice(tables, verbose):
                 if verbose:
                     print >> stderr, table, '-', row.get('Name'), 'in', row.get('Universe')
     
-                files.append((table, file_name, column_offset, cell_count))
+                files.append((table, file_name, column_offset, cell_count, row.get('Field Names')))
                 break
             
             column_offset += cell_count
@@ -324,10 +362,10 @@ if __name__ == '__main__':
     if options.verbose is not False:
         print >> stderr, 'Fetching from %s' % src_file
         print >> stderr, ', '.join(options.summary_level), options.state, '-',
-        print >> stderr, ', '.join( ['%s: file %s (%d @%d)' % (tbl, fn, cc, co) for (tbl, fn, co, cc) in files] )
+        print >> stderr, ', '.join( ['%s: file %s (%d @%d)' % (tbl, fn, cc, co) for (tbl, fn, co, cc, flds) in files] )
         print >> stderr, '-' * 32
     
-    file_names = set( [file_name for (tbl, file_name, co, cc) in files] )
+    file_names = set( [file_name for (tbl, file_name, co, cc, flds) in files] )
     geo_path, data_paths = file_paths(options.state, file_names)
 
     # Be forgiving about the bounding box
@@ -339,12 +377,11 @@ if __name__ == '__main__':
             
     # Get the header for the geo columns
     row = column_names(options.wide)
-    pat = compile(r'^([A-Z]+)(\d+)([A-Z]*)$')
+    pat = re.compile(r'^([A-Z]+)(\d+)([A-Z]*)$')
     
     # Write the header for the data columns
-    for (table, fn, co, cell_count) in files:
-        row += ['%s%03d%s%04d' % (pat.sub(r'\1', table), int(pat.sub(r'\2', table)), pat.sub(r'\3', table), cell)
-                for cell in range(1, cell_count + 1)]
+    for (table, fn, co, cell_count, field_names) in files:
+        row += field_names
     
     out = options.output and open(options.output, 'w') or stdout
     out = DictWriter(out, dialect='excel-tab', fieldnames = row)
@@ -353,7 +390,7 @@ if __name__ == '__main__':
     # Get iterables for all of the files
     file_iters = {}
     
-    for (tbl, file_name, co, cc) in files:
+    for (tbl, file_name, co, cc, flds) in files:
         if file_name not in file_iters:
             file_iters[file_name] = data_lines(src_file, data_paths[file_name], options.verbose)
     
@@ -396,10 +433,9 @@ if __name__ == '__main__':
             for line in file_iters[fname]:
                 if line[4] == geo['LOGRECNO']:
                    # We found a match, grab every matrix in this file at once
-                   # matrix is in the form (matrix/table name, file, offset, cell count)
+                   # matrix is in the form (matrix/table name, file, offset, cell count, field names)
                    for matrix in [i for i in files if i[1] == fname]:
-                       names = ['%s%03d%s%04d' % (pat.sub(r'\1', matrix[0]), int(pat.sub(r'\2', matrix[0])), pat.sub(r'\3', matrix[0]), cell)
-                                for cell in range(1, matrix[3] + 1)]
+                       names = matrix[4]
                        values = line[matrix[2]:matrix[2]+matrix[3]]
                        row.update(zip(names, values))
                    # done
