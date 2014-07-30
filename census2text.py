@@ -121,7 +121,7 @@ def file_choice(tables, verbose):
     """
 
     # code originally in readcsv.py by Peter Gao
-    datareader = DictReader(open("sf1_data_field_descriptors_2010.csv"))
+    datareader = DictReader(open(dirname(argv[0]) + "/sf1_data_field_descriptors_2010.csv"))
     data = []
     entry = None
     prevCol = None
