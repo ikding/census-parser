@@ -1,10 +1,10 @@
 #!/usr/bin/python
 
 """
-Test census2text.py by pulling down data for Knox County, TN and cross checking with API results
+Test census2text2010.py by pulling down data for Knox County, TN and cross checking with API results
 usage: test.py
 
-Assumes that census2text can be found in the current working directory.
+Assumes that census2text2010 can be found in the current working directory and that a census API key is in the CENSUS_API_KEY environment variable.
 """
 
 from os import environ
@@ -57,7 +57,7 @@ except:
     pickle.dump(data, open('apidat.pickle', 'w'))
 
 # get Knox County data through the raw files
-cmd = './census2text.py --state {state} --county {county} --geography county {matrices}'\
+cmd = './census2text2010.py --state {state} --county {county} --geography county {matrices}'\
                    .format(state=state, county=county, matrices=' '.join(matrices))
 print cmd
 raw = os.popen(cmd)
