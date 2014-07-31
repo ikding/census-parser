@@ -4,12 +4,11 @@
 Run with --help flag for usage instructions.
 """
 
-from sys import stdout, stderr
+from sys import stdout, stderr, argv
 from os import SEEK_SET, SEEK_CUR, SEEK_END
-from re import compile
 from time import time
-from csv import reader, writer, DictReader
-from os.path import basename
+from csv import reader, DictWriter, DictReader
+from os.path import basename, dirname, join
 from datetime import timedelta
 from optparse import OptionParser
 from urlparse import urlparse, urljoin
@@ -18,6 +17,7 @@ from httplib import HTTPConnection
 from urllib import urlopen
 from zipfile import ZipFile
 from itertools import izip
+import re
 
 class RemoteFileObject:
     """ Implement enough of this to be useful:
@@ -115,20 +115,58 @@ class RemoteFileObject:
     def tell(self):
         return self.offset
 
-def file_choice(summary_file, tables, verbose):
+def file_choice(tables, verbose):
     """
+    Choose the right summary file component for the given Census table
     """
-    url = 'http://census-tools.teczno.com/%s.txt' % summary_file
-    src = StringIO(urlopen(url).read())
-    
+
+    # code originally in readcsv.py by Peter Gao
+    datareader = DictReader(open(dirname(argv[0]) + "/sf1_data_field_descriptors_2010.csv"))
+    data = []
+    entry = None
+    prevCol = None
+    current_table = ""
+    for line in datareader:
+        new_table_number = line['TABLE NUMBER']
+        if new_table_number != current_table:
+            # save the old one
+            if entry != None:
+                data.append(entry)
+
+            entry = {}
+            current_table = new_table_number
+            entry['Matrix Number'] = line['TABLE NUMBER']
+            entry['File Name'] = line['SEGMENT']
+            next_line = datareader.next()
+            entry['Universe'] = (next_line['FIELD NAME'][9:].lstrip())
+
+            entry['Name'] = line['FIELD NAME'][:line['FIELD NAME'].index('[')-1]
+            entry['Cell Count'] = 0
+            entry['Field Names'] = []
+
+        # Increment the cell count iff there's actually data, rather than this being a descriptive row,
+        # and save the column name
+        if len(line['FIELD CODE']) > 0:
+            entry['Cell Count'] += 1
+            entry['Field Names'].append(line['FIELD CODE'])
+
+            # sanity check: ensure the columns are stored in order
+            if entry['Cell Count'] == 1:
+                assert int(re.sub('[A-Z]', '', line['FIELD CODE'][-4:])) == 1,\
+                    'Field names not stored in order for matrix %s: first column is %s' % (entry['Matrix Number'], line['FIELD CODE'])
+            else:
+                assert int(re.sub('[A-Z]', '', line['FIELD CODE'][-4:])) == int(re.sub('[A-Z]', '', prevCol[-4:])) + 1,\
+                    'Field names are not stored in order for matrix %s: column %s follows column %s' %\
+                    (entry['Matrix Number'], line['FIELD CODE'], prevCol)
+
+            prevCol = line['FIELD CODE']
+
     files = []
     
     for table in tables:
-        src.seek(0)
-        
         file_name, column_offset = None, 5
         
-        for row in DictReader(src, dialect='excel-tab'):
+        for row in data:
             curr_file, curr_table, cell_count = row.get('File Name'), row.get('Matrix Number'), int(row.get('Cell Count'))
             
             if curr_file != file_name:
@@ -138,53 +176,22 @@ def file_choice(summary_file, tables, verbose):
                 if verbose:
                     print >> stderr, table, '-', row.get('Name'), 'in', row.get('Universe')
     
-                files.append((table, file_name, column_offset, cell_count))
+                files.append((table, file_name, column_offset, cell_count, row.get('Field Names')))
                 break
             
             column_offset += cell_count
         
     return files
 
-def file_paths(summary_file, state, file_names):
+def file_paths(state, files):
     """
+    Convert File 3 California into ca000032010.sf1
     """
-    file_paths_func = globals().get('_file_paths_%s' % summary_file)
-    return file_paths_func(state, file_names)
-
-def _file_paths_SF1(state, file_names):
-    """
-    """
-    if state:
-        dir_name = state.replace(' ', '_')
-        state_prefix = states.get(state).lower()
-        geo_path = 'Summary_File_1/%s/%sgeo_uf1.zip' % (dir_name, state_prefix)
-        data_pat = 'Summary_File_1/%s/%s000%%s_uf1.zip' % (dir_name, state_prefix)
-    
-    else:
-        geo_path = 'Summary_File_1/0Final_National/usgeo_uf1.zip'
-        data_pat = 'Summary_File_1/0Final_National/us000%s_uf1.zip'
-
-    data_paths = [(file_name, data_pat % file_name) for file_name in file_names]
-    return geo_path, dict(data_paths)
-
-def _file_paths_SF3(state, file_names):
-    """
-    """
-    if state:
-        dir_name = state.replace(' ', '_')
-        state_prefix = states.get(state).lower()
-        geo_path = 'Summary_File_3/%s/%sgeo_uf3.zip' % (dir_name, state_prefix)
-        data_pat = 'Summary_File_3/%s/%s000%%s_uf3.zip' % (dir_name, state_prefix)
-    
-    else:
-        geo_path = 'Summary_File_3/0_National/usgeo_uf3.zip'
-        data_pat = 'Summary_File_3/0_National/us000%s_uf3.zip'
-
-    data_paths = [(file_name, data_pat % file_name) for file_name in file_names]
-    return geo_path, dict(data_paths)
+    return '%sgeo2010.sf1' % states[state].lower(), dict([(f, '%s%05d2010.sf1' % (states[state].lower(), int(f))) for f in files])
 
 def column_names(wide):
     """
+    Column names for geographic header file
     """
     if wide is True:
         return ['Summary Level', 'Geographic Component', 'State FIPS', 'Place FIPS', 'County FIPS', 'Tract', 'Zip', 'Block', 'Name', 'Latitude', 'Longitude', 'Land Area', 'Water Area', 'Population', 'Housing Units']
@@ -195,6 +202,7 @@ def column_names(wide):
 
 def key_names(wide):
     """
+    Key names for geographic header file
     """
     if wide is True:
         return ('SUMLEV', 'GEOCOMP', 'STATE', 'PLACE', 'COUNTY', 'TRACT', 'ZCTA5', 'BLOCK', 'NAME', 'LATITUDE', 'LONGITUDE', 'AREALAND', 'AREAWATER', 'POP100', 'HU100')
@@ -203,51 +211,59 @@ def key_names(wide):
     else:
         return ('SUMLEV', 'GEOCOMP', 'STATE', 'PLACE', 'COUNTY', 'TRACT', 'ZCTA5', 'BLOCK', 'NAME', 'LATITUDE', 'LONGITUDE')
 
-def geo_lines(path, verbose):
+def get_file_in_zipfile(url, fname, verbose):
     """
+    Return a file-like object for a file in a remote zipfile
     """
-    u = urljoin('http://www2.census.gov/census_2000/datasets/', path)
-    f = RemoteFileObject(u, verbose, 256 * 1024)
+    f = RemoteFileObject(url, verbose, 256 * 1024)
     z = ZipFile(f)
-    n = z.namelist()
     
-    assert len(n) == 1, 'Expected one file, not %d: %s' % (len(n), repr(n))
+    assert fname in z.namelist(), 'Filename %s not found in ZIP %s' % (fname, url)
     
-    # Offsets here are one-based to match the documentation in
-    # http://census-tools.teczno.com/SF1-p015-34-geo-state.pdf
-    cols = [('LATITUDE', 311, 9), ('LONGITUDE', 320, 10),
-            ('LOGRECNO', 19, 7), ('SUMLEV', 9, 3), ('GEOCOMP', 12, 2),
-            ('STATE', 30, 2), ('PLACE', 46, 5), ('COUNTY', 32, 3), ('TRACT', 56, 6),
-            ('BLOCK', 63, 4), ('NAME', 201, 90), ('ZCTA3', 158, 3), ('ZCTA5', 161, 5),
-            ('AREALAND', 173, 14), ('AREAWATER', 187, 14),
-            ('POP100', 293, 9), ('HU100', 302, 9)]
+    return z.open(fname)
 
-    for line in z.open(n[0]):
+def geo_lines(url, fname, verbose):
+    """
+    Get the appropriate geographic header
+    """
+
+    # make sure it is a geographic header
+    assert fname[2:] == 'geo2010.sf1', 'Not a geographic header file: %s' % fname
+
+    inp = get_file_in_zipfile(url, fname, verbose)
+
+    # The column offsets and widths are recorded here for the 2010 geographic header
+    # Offsets here are one-based to match the documentation on page 19 of the SF1 documentation
+    # Note that AREAWATER is called AREAWATR in the docs; despite dropping penultimate e's being
+    # all the rage in cool web 2.0 apps (e.g. Flickr), we're going to restore it.
+    cols = [('LATITUDE', 337, 11), ('LONGITUDE', 348, 12),
+            ('LOGRECNO', 19, 7), ('SUMLEV', 9, 3), ('GEOCOMP', 12, 2),
+            ('STATE', 28, 2), ('PLACE', 46, 5), ('COUNTY', 30, 3), ('TRACT', 55, 6),
+            ('BLOCK', 62, 4), ('NAME', 227, 90), ('ZCTA5', 172, 5),
+            ('AREALAND', 199, 14), ('AREAWATER', 213, 14),
+            ('POP100', 319, 9), ('HU100', 328, 9)]
+
+    for line in inp:
         data = dict( [(key, line[s-1:s-1+l].strip()) for (key, s, l) in cols] )
         
+        # Census Bureau represents positive latitude and longitude as +number, get rid of the plus
+        # There is positive longitude in the US, check out Attu Station CDP, Alaska
         for key in ('LATITUDE', 'LONGITUDE'):
-            val = data[key]
-            data[key] = (val[0] + val[1:-6].lstrip('0') + '.' + val[-6:]).lstrip('+')
-        
-        #for key in ('AREALAND', 'AREAWATER', 'POP100', 'HU100'):
-        #    data[key] = int(data[key])
+            data[key] = data[key].lstrip('+')
         
         yield data
 
-def data_lines(path, verbose):
+def data_lines(url, fname, verbose):
     """
+    Get all the lines in data file fname from zip file path
     """
-    u = urljoin('http://www2.census.gov/census_2000/datasets/', path)
-    f = RemoteFileObject(u, verbose, 256 * 1024)
-    z = ZipFile(f)
-    n = z.namelist()
-    
-    assert len(n) == 1, 'Expected one file, not %d: %s' % (len(n), repr(n))
-    
-    for row in reader(z.open(n[0])):
+    data = get_file_in_zipfile(url, fname, verbose)
+
+    for row in reader(data):
         yield row
 
-summary_levels = {'country': '010', 'region': '020', 'state': '040', 'county': '050', 'tract': '080', 'zip': ('860', '871'), 'block': '101', 'place': '160'}
+# Updated for 2010 census
+summary_levels = {'state': '040', 'county': '050', 'tract': '080', 'zip': '871', 'block': '101', 'place': '160'}
 
 states = {'Alabama': 'AL', 'Alaska': 'AK', 'American Samoa': 'AS', 'Arizona': 'AZ',
     'Arkansas': 'AR', 'California': 'CA', 'Colorado': 'CO', 'Connecticut': 'CT', 'Delaware': 'DE',
@@ -264,7 +280,7 @@ states = {'Alabama': 'AL', 'Alaska': 'AK', 'American Samoa': 'AS', 'Arizona': 'A
 
 parser = OptionParser(usage="""%%prog [options] [list of table IDs]
 
-Convert remote U.S. Census 2000 data to local tab-separated text files.
+Convert remote U.S. Census 2010 data to local tab-separated text files.
 
 Examples:
 
@@ -274,47 +290,34 @@ Examples:
     Age breakdowns for census tracts around Oakland, CA
     census2text.py --state California --bbox 37.86 -122.35 37.70 -122.10 --geography tract P12
     
-    Family type and employment state for counties around New England
-    census2text.py --file SF3 --bbox 47.7 -80.7 38.4 -66.4 P44
-
 Complete documentation of Summary File data is dense but helpful:
-  http://www.census.gov/prod/cen2000/doc/sf1.pdf
+  http://www.census.gov/prod/cen2010/doc/sf1.pdf
 
-See Chapter 7, page 228 for explanation of column names in output.
+Column descriptions are start on page 183.
 
-Other summary files have similar docs:
-  http://www.census.gov/prod/cen2000/doc/sf3.pdf
-
-Available summary files: SF1, SF3.
-
-Available table IDs for each summary file:
-  http://census-tools.teczno.com/SF1-p078-82-subject-locator.pdf
-  http://census-tools.teczno.com/SF3-p062-84-subject-locator.pdf
+Available summary files: SF1.
 
 Available summary levels: %s.
 
-See also numeric summary levels in:
-  http://census-tools.teczno.com/SF1-p083-84-sequence-state.pdf
-  http://census-tools.teczno.com/SF1-p087-88-sequence-national.pdf
-
+See also numeric summary levels in the SF1 documentation, page 107.
 """.rstrip() % ', '.join(summary_levels.keys()))
 
-parser.set_defaults(summary_file='SF1', summary_level='county', table='P1', verbose=None, wide=None)
+parser.set_defaults(summary_level='county', table='P1', verbose=None, wide=None)
+
+parser.add_option('-s', '--state', dest='state',
+                  help='State, e.g. "Alaska", "District of Columbia." Required.',
+                  type='choice', choices=states.keys())
 
 parser.add_option('-o', '--output', dest='output',
                   help='Optional output filename, stdout if omitted.')
-
-parser.add_option('-f', '--file', dest='summary_file',
-                  help='Optional summary file, defaults to "SF1".',
-                  type='choice', choices=('SF1', 'SF3'))
 
 parser.add_option('-g', '--geography', dest='summary_level',
                   help='Geographic summary level, e.g. "state", "040". Some available summary levels are %s.' % ', '.join(summary_levels.keys()),
                   type='choice', choices=summary_levels.keys() + summary_levels.values())
 
-parser.add_option('-s', '--state', dest='state',
-                  help='Optional state, e.g. "Alaska", "District of Columbia".',
-                  type='choice', choices=states.keys())
+parser.add_option('-c', '--county', dest='county',
+                  help='County FIPS code (3 digits). e.g. --state California --county 083 would yield data for Santa Barbara County, CA',
+                  type='string')
 
 parser.add_option('-b', '--bbox', dest='bbox',
                   help='Optional geographic bounds: north west south east.',
@@ -339,49 +342,62 @@ parser.add_option('-v', '--verbose', dest='verbose',
 if __name__ == '__main__':
 
     options, tables = parser.parse_args()
+
+    if options.state == None:
+        parser.error('Please specify a state; the 2010 Census no longer provides nation-level files')
     
     if options.summary_level in summary_levels:
         options.summary_level = summary_levels[options.summary_level]
 
+    # There may be multiple summary levels; if not, fix up
     if type(options.summary_level) is not tuple:
         options.summary_level = (options.summary_level, )
     
-    files = file_choice(options.summary_file, tables, options.verbose is not False)
+    # Figure out what files we need to fetch
+    files = file_choice(tables, options.verbose is not False)
     
+    # set up the path to the zipfile
+    src_file = 'http://www2.census.gov/census_2010/04-Summary_File_1/%s/%s2010.sf1.zip' % (options.state.replace(' ', '_'), states[options.state].lower())
+
     if options.verbose is not False:
+        print >> stderr, 'Fetching from %s' % src_file
         print >> stderr, ', '.join(options.summary_level), options.state, '-',
-        print >> stderr, ', '.join( ['%s: file %s (%d @%d)' % (tbl, fn, cc, co) for (tbl, fn, co, cc) in files] )
+        print >> stderr, ', '.join( ['%s: file %s (%d @%d)' % (tbl, fn, cc, co) for (tbl, fn, co, cc, flds) in files] )
         print >> stderr, '-' * 32
     
-    file_names = set( [file_name for (tbl, file_name, co, cc) in files] )
-    geo_path, data_paths = file_paths(options.summary_file, options.state, file_names)
+    file_names = set( [file_name for (tbl, file_name, co, cc, flds) in files] )
+    geo_path, data_paths = file_paths(options.state, file_names)
 
+    # Be forgiving about the bounding box
     if options.bbox is not None:
         north = max(options.bbox[0], options.bbox[2])
         south = min(options.bbox[0], options.bbox[2])
         east = max(options.bbox[1], options.bbox[3])
         west = min(options.bbox[1], options.bbox[3])
-        
-    out = options.output and open(options.output, 'w') or stdout
-    out = writer(out, dialect='excel-tab')
-    
+            
+    # Get the header for the geo columns
     row = column_names(options.wide)
-    pat = compile(r'^([A-Z]+)(\d+)([A-Z]*)$')
+    pat = re.compile(r'^([A-Z]+)(\d+)([A-Z]*)$')
     
-    for (table, fn, co, cell_count) in files:
-        row += ['%s%03d%s%03d' % (pat.sub(r'\1', table), int(pat.sub(r'\2', table)), pat.sub(r'\3', table), cell)
-                for cell in range(1, cell_count + 1)]
+    # Write the header for the data columns
+    for (table, fn, co, cell_count, field_names) in files:
+        row += field_names
     
-    out.writerow(row)
+    out = options.output and open(options.output, 'w') or stdout
+    out = DictWriter(out, dialect='excel-tab', fieldnames = row)
+    out.writeheader()
     
+    # Get iterables for all of the files
     file_iters = {}
     
-    for (tbl, file_name, co, cc) in files:
+    for (tbl, file_name, co, cc, flds) in files:
         if file_name not in file_iters:
-            file_iters[file_name] = data_lines(data_paths[file_name], options.verbose)
+            file_iters[file_name] = data_lines(src_file, data_paths[file_name], options.verbose)
     
     file_names = sorted(file_iters.keys())
-    geo_iter = geo_lines(geo_path, options.verbose)
+
+    # get rows from geographic header
+    geo_iter = geo_lines(src_file, geo_path, options.verbose)
     
     for geo in geo_iter:
         
@@ -394,6 +410,10 @@ if __name__ == '__main__':
             # not e.g. "01" for urban or "43" for rural parts.
             continue
 
+        if options.county != None and geo['COUNTY'] != options.county:
+            # This is not the county you're looking for
+            continue
+
         if options.bbox is not None:
             lat, lon = float(geo['LATITUDE']), float(geo['LONGITUDE'])
             
@@ -401,27 +421,25 @@ if __name__ == '__main__':
                 # This geography is outside the bounding box
                 continue
     
-        row = [geo[key] for key in key_names(options.wide)]
+        vals = [geo[key] for key in key_names(options.wide)]
+        # name the columns appropriately
+        row = dict(zip(column_names(options.wide), vals))
         
-        data_iters = izip(*[file_iters[file_name] for file_name in file_names])
-        
-        for data_lines in data_iters:
-            
-            file_data = dict(zip(file_names, data_lines))
-            
-            logrecno_matches = [geo['LOGRECNO'] == data[4] for data in file_data.values()]
-            
-            if False in logrecno_matches:
-                # Logical record numbers don't match, keep looking
-                continue
+        # Iterate over every line in each of the necessary files
+        # It is possible that there won't be an entry for some variable in some file,
+        # so we can't iterate over them all at once as was done in the 2000 version of this script
 
-            # A match!
-            for (tbl, file_name, column_offset, cell_count) in files:
-                data = file_data[file_name]
-                row += data[column_offset:column_offset + cell_count]
-            
-            # Great move on to the next geo
-            break
+        for fname in file_iters.keys():
+            for line in file_iters[fname]:
+                if line[4] == geo['LOGRECNO']:
+                   # We found a match, grab every matrix in this file at once
+                   # matrix is in the form (matrix/table name, file, offset, cell count, field names)
+                   for matrix in [i for i in files if i[1] == fname]:
+                       names = matrix[4]
+                       values = line[matrix[2]:matrix[2]+matrix[3]]
+                       row.update(zip(names, values))
+                   # done
+                   break
         
         out.writerow(row)
         stdout.flush()
