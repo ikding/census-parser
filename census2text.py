@@ -121,7 +121,7 @@ def file_choice(tables, verbose):
     """
 
     # code originally in readcsv.py by Peter Gao
-    datareader = DictReader(open(dirname(argv[0]) + "/sf1_data_field_descriptors_2010.csv"))
+    datareader = DictReader(open(dirname(argv[0]) + "sf1_data_field_descriptors_2010.csv"))
     data = []
     entry = None
     prevCol = None
@@ -194,22 +194,22 @@ def column_names(wide):
     Column names for geographic header file
     """
     if wide is True:
-        return ['Summary Level', 'Geographic Component', 'State FIPS', 'Place FIPS', 'County FIPS', 'Tract', 'Zip', 'Block', 'Name', 'Latitude', 'Longitude', 'Land Area', 'Water Area', 'Population', 'Housing Units']
+        return ['Summary Level', 'Geographic Component', 'State FIPS', 'Place FIPS', 'County FIPS', 'Tract', 'Zip', 'Block Group', 'Block', 'Name', 'Latitude', 'Longitude', 'Land Area', 'Water Area', 'Population', 'Housing Units']
     elif wide is False:
-        return ['State FIPS', 'Place FIPS', 'County FIPS', 'Tract', 'Zip', 'Block']
+        return ['State FIPS', 'Place FIPS', 'County FIPS', 'Tract', 'Zip', 'Block Group', 'Block']
     else:
-        return ['Summary Level', 'Geographic Component', 'State FIPS', 'Place FIPS', 'County FIPS', 'Tract', 'Zip', 'Block', 'Name', 'Latitude', 'Longitude']
+        return ['Summary Level', 'Geographic Component', 'State FIPS', 'Place FIPS', 'County FIPS', 'Tract', 'Zip', 'Block Group', 'Block', 'Name', 'Latitude', 'Longitude']
 
 def key_names(wide):
     """
     Key names for geographic header file
     """
     if wide is True:
-        return ('SUMLEV', 'GEOCOMP', 'STATE', 'PLACE', 'COUNTY', 'TRACT', 'ZCTA5', 'BLOCK', 'NAME', 'LATITUDE', 'LONGITUDE', 'AREALAND', 'AREAWATER', 'POP100', 'HU100')
+        return ('SUMLEV', 'GEOCOMP', 'STATE', 'PLACE', 'COUNTY', 'TRACT', 'ZCTA5', 'BLOCKGROUP', 'BLOCK', 'NAME', 'LATITUDE', 'LONGITUDE', 'AREALAND', 'AREAWATER', 'POP100', 'HU100')
     elif wide is False:
-        return ('STATE', 'PLACE', 'COUNTY', 'TRACT', 'ZCTA5', 'BLOCK')
+        return ('STATE', 'PLACE', 'COUNTY', 'TRACT', 'ZCTA5', 'BLOCKGROUP', 'BLOCK')
     else:
-        return ('SUMLEV', 'GEOCOMP', 'STATE', 'PLACE', 'COUNTY', 'TRACT', 'ZCTA5', 'BLOCK', 'NAME', 'LATITUDE', 'LONGITUDE')
+        return ('SUMLEV', 'GEOCOMP', 'STATE', 'PLACE', 'COUNTY', 'TRACT', 'ZCTA5', 'BLOCKGROUP', 'BLOCK', 'NAME', 'LATITUDE', 'LONGITUDE')
 
 def get_file_in_zipfile(url, fname, verbose):
     """
@@ -239,7 +239,7 @@ def geo_lines(url, fname, verbose):
     cols = [('LATITUDE', 337, 11), ('LONGITUDE', 348, 12),
             ('LOGRECNO', 19, 7), ('SUMLEV', 9, 3), ('GEOCOMP', 12, 2),
             ('STATE', 28, 2), ('PLACE', 46, 5), ('COUNTY', 30, 3), ('TRACT', 55, 6),
-            ('BLOCK', 62, 4), ('NAME', 227, 90), ('ZCTA5', 172, 5),
+            ('BLOCKGROUP', 61, 1), ('BLOCK', 62, 4), ('NAME', 227, 90), ('ZCTA5', 172, 5),
             ('AREALAND', 199, 14), ('AREAWATER', 213, 14),
             ('POP100', 319, 9), ('HU100', 328, 9)]
 
@@ -263,7 +263,7 @@ def data_lines(url, fname, verbose):
         yield row
 
 # Updated for 2010 census
-summary_levels = {'state': '040', 'county': '050', 'tract': '080', 'zip': '871', 'block': '101', 'place': '160'}
+summary_levels = {'state': '040', 'county': '050', 'tract': '080', 'zip': '871', 'block_group': '091', 'block': '101', 'place': '160'}
 
 states = {'Alabama': 'AL', 'Alaska': 'AK', 'American Samoa': 'AS', 'Arizona': 'AZ',
     'Arkansas': 'AR', 'California': 'CA', 'Colorado': 'CO', 'Connecticut': 'CT', 'Delaware': 'DE',
@@ -432,14 +432,14 @@ if __name__ == '__main__':
         for fname in file_iters.keys():
             for line in file_iters[fname]:
                 if line[4] == geo['LOGRECNO']:
-                   # We found a match, grab every matrix in this file at once
-                   # matrix is in the form (matrix/table name, file, offset, cell count, field names)
-                   for matrix in [i for i in files if i[1] == fname]:
-                       names = matrix[4]
-                       values = line[matrix[2]:matrix[2]+matrix[3]]
-                       row.update(zip(names, values))
-                   # done
-                   break
+                    # We found a match, grab every matrix in this file at once
+                    # matrix is in the form (matrix/table name, file, offset, cell count, field names)
+                    for matrix in [i for i in files if i[1] == fname]:
+                        names = matrix[4]
+                        values = line[matrix[2]:matrix[2]+matrix[3]]
+                        row.update(zip(names, values))
+                    # done
+                    break
         
         out.writerow(row)
         stdout.flush()
