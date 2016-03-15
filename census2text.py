@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-""" Convert remote U.S. Census 2000 data to local tab-separated text files.
+""" Convert remote U.S. Census 2010 data to local tab-separated text files.
 
 Run with --help flag for usage instructions.
 """
@@ -263,20 +263,20 @@ def data_lines(url, fname, verbose):
         yield row
 
 # Updated for 2010 census
-summary_levels = {'state': '040', 'county': '050', 'tract': '080', 'zip': '871', 'block_group': '091', 'block': '101', 'place': '160'}
+summary_levels = {'state': '040', 'county': '050', 'tract': '140', 'zip': '871', 'blockgroup': '150', 'block': '101', 'place': '160'}
 
 states = {'Alabama': 'AL', 'Alaska': 'AK', 'American Samoa': 'AS', 'Arizona': 'AZ',
-    'Arkansas': 'AR', 'California': 'CA', 'Colorado': 'CO', 'Connecticut': 'CT', 'Delaware': 'DE',
-    'District of Columbia': 'DC', 'Florida': 'FL', 'Georgia': 'GA', 'Hawaii': 'HI', 'Idaho': 'ID',
-    'Illinois': 'IL', 'Indiana': 'IN', 'Iowa': 'IA', 'Kansas': 'KS', 'Kentucky': 'KY',
-    'Louisiana': 'LA', 'Maine': 'ME', 'Marshall Islands': 'MH', 'Maryland': 'MD',
-    'Massachusetts': 'MA', 'Michigan': 'MI', 'Minnesota': 'MN', 'Mississippi': 'MS',
-    'Missouri': 'MO', 'Montana': 'MT', 'Nebraska': 'NE', 'Nevada': 'NV', 'New Hampshire': 'NH',
-    'New Jersey': 'NJ', 'New Mexico': 'NM', 'New York': 'NY', 'North Carolina': 'NC',
-    'North Dakota': 'ND', 'Ohio': 'OH', 'Oklahoma': 'OK', 'Oregon': 'OR', 'Pennsylvania': 'PA',
-    'Puerto Rico': 'PR', 'Rhode Island': 'RI', 'South Carolina': 'SC', 'South Dakota': 'SD',
-    'Tennessee': 'TN', 'Texas': 'TX', 'Utah': 'UT', 'Vermont': 'VT', 'Virginia': 'VA',
-    'Washington': 'WA', 'West Virginia': 'WV', 'Wisconsin': 'WI', 'Wyoming': 'WY'}
+          'Arkansas': 'AR', 'California': 'CA', 'Colorado': 'CO', 'Connecticut': 'CT', 'Delaware': 'DE',
+          'District of Columbia': 'DC', 'Florida': 'FL', 'Georgia': 'GA', 'Hawaii': 'HI', 'Idaho': 'ID',
+          'Illinois': 'IL', 'Indiana': 'IN', 'Iowa': 'IA', 'Kansas': 'KS', 'Kentucky': 'KY',
+          'Louisiana': 'LA', 'Maine': 'ME', 'Marshall Islands': 'MH', 'Maryland': 'MD',
+          'Massachusetts': 'MA', 'Michigan': 'MI', 'Minnesota': 'MN', 'Mississippi': 'MS',
+          'Missouri': 'MO', 'Montana': 'MT', 'Nebraska': 'NE', 'Nevada': 'NV', 'New Hampshire': 'NH',
+          'New Jersey': 'NJ', 'New Mexico': 'NM', 'New York': 'NY', 'North Carolina': 'NC',
+          'North Dakota': 'ND', 'Ohio': 'OH', 'Oklahoma': 'OK', 'Oregon': 'OR', 'Pennsylvania': 'PA',
+          'Puerto Rico': 'PR', 'Rhode Island': 'RI', 'South Carolina': 'SC', 'South Dakota': 'SD',
+          'Tennessee': 'TN', 'Texas': 'TX', 'Utah': 'UT', 'Vermont': 'VT', 'Virginia': 'VA',
+          'Washington': 'WA', 'West Virginia': 'WV', 'Wisconsin': 'WI', 'Wyoming': 'WY'}
 
 parser = OptionParser(usage="""%%prog [options] [list of table IDs]
 
@@ -362,10 +362,10 @@ if __name__ == '__main__':
     if options.verbose is not False:
         print >> stderr, 'Fetching from %s' % src_file
         print >> stderr, ', '.join(options.summary_level), options.state, '-',
-        print >> stderr, ', '.join( ['%s: file %s (%d @%d)' % (tbl, fn, cc, co) for (tbl, fn, co, cc, flds) in files] )
+        print >> stderr, ', '.join(['%s: file %s (%d @%d)' % (tbl, fn, cc, co) for (tbl, fn, co, cc, flds) in files])
         print >> stderr, '-' * 32
     
-    file_names = set( [file_name for (tbl, file_name, co, cc, flds) in files] )
+    file_names = set([file_name for (tbl, file_name, co, cc, flds) in files])
     geo_path, data_paths = file_paths(options.state, file_names)
 
     # Be forgiving about the bounding box
@@ -384,7 +384,7 @@ if __name__ == '__main__':
         row += field_names
     
     out = options.output and open(options.output, 'w') or stdout
-    out = DictWriter(out, dialect='excel-tab', fieldnames = row)
+    out = DictWriter(out, dialect='excel-tab', fieldnames=row)
     out.writeheader()
     
     # Get iterables for all of the files
