@@ -3,6 +3,8 @@
 # Example tables of interest:
 #   P1: Total population
 #   P12: Population break down by age and sex bins
+#   P13: Median Age By Sex
+
 # Geography levels of interest: county, tract, blockgroup
 
 # Make a dir if it doesn't exist yet
@@ -11,7 +13,7 @@ mkdir -p data/census/census2010
 for g in blockgroup tract county
 # for g in tract
 do
-    for t in P1 P12
+    for t in P1 P12 P13
     do
 
         # # Uncomment the states you want to download!
